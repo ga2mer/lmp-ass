@@ -1,6 +1,6 @@
 let currentSubs = [];
 let currentInstance;
-const forceDisableDemandRender = Lampa.Platform.is("webos");
+const forceDisableDemandRender = Lampa.Platform.is("webos") || /web0s|webos/i.test(window.navigator.userAgent);
 
 const defaultSettingsValues = {
   demandRender: !forceDisableDemandRender,

@@ -1,6 +1,7 @@
 let currentSubs = [];
 let currentInstance;
-const forceDisableDemandRender = Lampa.Platform.is("webos") || /web0s|webos/i.test(window.navigator.userAgent);
+const forceDisableDemandRender =
+  Lampa.Platform.is("webos") || /web0s|webos/i.test(window.navigator.userAgent);
 
 const defaultSettingsValues = {
   demandRender: !forceDisableDemandRender,
@@ -47,6 +48,10 @@ function runAss() {
       onDemandRender: Lampa.Storage.get(
         "ass_demand_render",
         defaultSettingsValues.demandRender
+      ),
+      prescaleFactor: Number(Lampa.Storage.get("ass_prescale_factor", 0.8)),
+      prescaleHeightLimit: Number(
+        Lampa.Storage.get("ass_prescale_height", 1080)
       ),
       modernWasmUrl:
         "https://thaunknown.github.io/jassub/jassub/assets/jassub-worker-modern.wasm",
@@ -126,6 +131,54 @@ Lampa.Utils.putScriptAsync(
   Lampa.SettingsApi.addParam({
     component: "ass",
     param: {
+      name: "ass_prescale_factor",
+      type: "select",
+      values: {
+        0.1: "0.1",
+        0.2: "0.2",
+        0.3: "0.3",
+        0.4: "0.4",
+        0.5: "0.5",
+        0.6: "0.6",
+        0.7: "0.7",
+        0.8: "0.8",
+        0.9: "0.9",
+        1.0: "1.0",
+      },
+      default: 0.8,
+    },
+    field: {
+      name: "Масштабирование",
+      description:
+        "Уменьшите масштаб холста субтитров, чтобы повысить производительность за счет качества",
+    },
+  });
+  Lampa.SettingsApi.addParam({
+    component: "ass",
+    param: {
+      name: "ass_prescale_height",
+      type: "select",
+      values: {
+        144: "144",
+        240: "240",
+        360: "360",
+        480: "480",
+        560: "560",
+        720: "720",
+        960: "960",
+        1080: "1080",
+      },
+      default: 1080,
+    },
+    field: {
+      name: "Масштабирование по высоте",
+      description:
+        "Высота в пикселях, после которой холст субтитров не будет масштабироваться.",
+    },
+  });
+  Lampa.SettingsApi.addParam({
+    component: "ass",
+    param: {
       name: "ass_async_render",
       type: "trigger",
       default: true,
@@ -145,7 +198,7 @@ Lampa.Utils.putScriptAsync(
     field: {
       name: "Рендер по запросу (DEV)",
       description:
-        "Нужно ли отображать субтитры по мере того, как видеоплеер отображает кадры, а не предсказывать, на каком кадре находится плеер, используя события (отключено на WebOS >=2)",
+        "Нужно ли отображать субтитры по мере того, как видеоплеер отображает кадры, а не предсказывать, на каком кадре находится плеер, используя события (отключено на WebOS >=2 из-за плохой реализации необходимых API в ОС)",
     },
   });
   // добавить фпс

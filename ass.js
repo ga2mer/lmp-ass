@@ -1,7 +1,9 @@
 let currentSubs = [];
 let currentInstance;
 const forceDisableDemandRender =
-  Lampa.Platform.is("webos") || /web0s|webos/i.test(window.navigator.userAgent);
+  Lampa.Platform.is("tizen") ||
+  Lampa.Platform.is("webos") ||
+  /web0s|webos/i.test(window.navigator.userAgent);
 
 const defaultSettingsValues = {
   demandRender: !forceDisableDemandRender,
@@ -33,11 +35,17 @@ function runAss() {
       destroyAss();
     }
   });
-  if (typeof url === "string") {
+  const currentPlayer = window.localStorage.getItem("player");
+  const videoElement = document.querySelector(".player-video__video");
+  if (
+    videoElement &&
+    (!currentPlayer || currentPlayer === "inner") &&
+    typeof url === "string"
+  ) {
     hideLampaSubs(true);
     // TO-DO: разные настройки для разных телевизоров
     const renderer = new JASSUB({
-      video: document.querySelector(".player-video__video"),
+      video: videoElement,
       subUrl: url,
       workerUrl: wfURL,
       offscreenRender: false,
@@ -198,7 +206,7 @@ Lampa.Utils.putScriptAsync(
     field: {
       name: "Рендер по запросу (DEV)",
       description:
-        "Нужно ли отображать субтитры по мере того, как видеоплеер отображает кадры, а не предсказывать, на каком кадре находится плеер, используя события (отключено на WebOS >=2 из-за плохой реализации необходимых API в ОС)",
+        "Нужно ли отображать субтитры по мере того, как видеоплеер отображает кадры, а не предсказывать, на каком кадре находится плеер, используя события (отключено на WebOS и Tizen из-за плохой реализации необходимых API в ОС)",
     },
   });
   // добавить фпс

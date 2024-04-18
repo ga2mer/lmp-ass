@@ -1,3 +1,29 @@
+const JASSUB_PRELOAD_URL =
+  "https://thaunknown.github.io/jassub/jassub/assets/jassub.umd.js";
+const JASSUB_WORKER_URL =
+  "https://gist.githubusercontent.com/ga2mer/694690297895f6641fb1a56e350cd8a2/raw/a10894004beaaddd35a958c3002e5931c0034436/jassub-worker.js";
+
+const OCTOPUS_PRELOAD_URL =
+  "https://libass.github.io/JavascriptSubtitlesOctopus/assets/js/subtitles-octopus.js";
+const OCTOPUS_WORKER_URL =
+  "https://gist.githubusercontent.com/ga2mer/694690297895f6641fb1a56e350cd8a2/raw/a10894004beaaddd35a958c3002e5931c0034436/octopus-worker.js";
+
+let isJassub = false;
+
+let preloadScriptUrl = OCTOPUS_PRELOAD_URL;
+let preloadWorkerUrl = OCTOPUS_WORKER_URL;
+try {
+  const chromeVersion = /Chrome\/([0-9]+)/.exec(navigator.userAgent)[1];
+  if (
+    Lampa.Storage.get("ass_engine") !== "octopus" &&
+    Number(chromeVersion) >= 80
+  ) {
+    preloadScriptUrl = JASSUB_PRELOAD_URL;
+    preloadWorkerUrl = JASSUB_WORKER_URL;
+    isJassub = true;
+  }
+} catch (e) {}
+
 let currentSubs = [];
 let currentInstance;
 const forceDisableDemandRender =
@@ -12,7 +38,13 @@ let wfURL;
 
 function destroyAss() {
   if (currentInstance) {
-    currentInstance.destroy();
+    if (isJassub) {
+      currentInstance.destroy();
+    } else {
+      try {
+        currentInstance.dispose();
+      } catch (e) {}
+    }
     currentInstance = null;
   }
 }
@@ -29,7 +61,11 @@ function runAss() {
     if (url) {
       return;
     }
-    if (subs.selected && subs?.url?.includes(".ass")) {
+    if (
+      subs.selected &&
+      typeof subs.url === "string" &&
+      subs.url.includes(".ass")
+    ) {
       url = subs.url;
     } else {
       destroyAss();
@@ -43,34 +79,53 @@ function runAss() {
     typeof url === "string"
   ) {
     hideLampaSubs(true);
-    // TO-DO: разные настройки для разных телевизоров
-    const renderer = new JASSUB({
-      video: videoElement,
-      subUrl: url,
-      workerUrl: wfURL,
-      offscreenRender: false,
-      blendMode: Lampa.Storage.get("ass_blend_mode", "js"),
-      asyncRender: Lampa.Storage.get("ass_async_render", true),
-      dropAllAnimations: Lampa.Storage.get("ass_drop_animation", true),
-      dropAllBlur: Lampa.Storage.get("ass_drop_blur", true),
-      onDemandRender: Lampa.Storage.get(
-        "ass_demand_render",
-        defaultSettingsValues.demandRender
-      ),
-      prescaleFactor: Number(Lampa.Storage.get("ass_prescale_factor", 0.8)),
-      prescaleHeightLimit: Number(
-        Lampa.Storage.get("ass_prescale_height", 1080)
-      ),
-      modernWasmUrl:
-        "https://thaunknown.github.io/jassub/jassub/assets/jassub-worker-modern.wasm",
-      wasmUrl:
-        "https://thaunknown.github.io/jassub/jassub/assets/jassub-worker.wasm",
-      availableFonts: {
-        "liberation sans":
-          "https://thaunknown.github.io/jassub/fonts/default.woff2",
-      },
-    });
-    currentInstance = renderer;
+    if (isJassub) {
+      // TO-DO: разные настройки для разных телевизоров
+      const renderer = new JASSUB({
+        video: videoElement,
+        subUrl: url,
+        workerUrl: wfURL,
+        offscreenRender: false,
+        blendMode: Lampa.Storage.get("ass_blend_mode", "js"),
+        asyncRender: Lampa.Storage.get("ass_async_render", true),
+        dropAllAnimations: Lampa.Storage.get("ass_drop_animation", true),
+        dropAllBlur: Lampa.Storage.get("ass_drop_blur", true),
+        onDemandRender: Lampa.Storage.get(
+          "ass_demand_render",
+          defaultSettingsValues.demandRender
+        ),
+        prescaleFactor: Number(Lampa.Storage.get("ass_prescale_factor", 0.8)),
+        prescaleHeightLimit: Number(
+          Lampa.Storage.get("ass_prescale_height", 1080)
+        ),
+        modernWasmUrl:
+          "https://thaunknown.github.io/jassub/jassub/assets/jassub-worker-modern.wasm",
+        wasmUrl:
+          "https://thaunknown.github.io/jassub/jassub/assets/jassub-worker.wasm",
+        availableFonts: {
+          "liberation sans":
+            "https://thaunknown.github.io/jassub/fonts/default.woff2",
+        },
+      });
+      currentInstance = renderer;
+    } else {
+      const blendMode = Lampa.Storage.get("ass_blend_mode", "js");
+      const renderMode = blendMode === "wasm" ? "wasm-blend" : "js-blend";
+      var options = {
+        video: videoElement,
+        subUrl: url,
+        renderMode,
+        fallbackFont: "https://thaunknown.github.io/jassub/fonts/default.woff2",
+        workerUrl: wfURL,
+        prescaleFactor: Number(Lampa.Storage.get("ass_prescale_factor", 0.8)),
+        prescaleHeightLimit: Number(
+          Lampa.Storage.get("ass_prescale_height", 1080)
+        ),
+        dropAllAnimations: Lampa.Storage.get("ass_drop_animation", true),
+      };
+      const instance = new SubtitlesOctopus(options);
+      currentInstance = instance;
+    }
   } else {
     hideLampaSubs(false);
   }
@@ -93,22 +148,17 @@ function initPlugin() {
   });
 }
 
-Lampa.Utils.putScriptAsync(
-  ["https://thaunknown.github.io/jassub/jassub/assets/jassub.umd.js"],
-  async () => {
-    // костыль потому что Worker работает только если скрипт находится на том же origin
-    const source = await fetch(
-      "https://thaunknown.github.io/jassub/jassub/assets/jassub-worker.js"
-    ).then((res) => res.text());
-    const functionStr = `function workerFunction() { ${source} }`;
-    wfURL = URL.createObjectURL(
-      new Blob(["(" + functionStr + ")()"], {
-        type: "text/javascript",
-      })
-    );
-    initPlugin();
-  }
-);
+Lampa.Utils.putScriptAsync([preloadScriptUrl], async () => {
+  // костыль потому что Worker работает только если скрипт находится на том же origin
+  const source = await fetch(preloadWorkerUrl).then((res) => res.text());
+  const functionStr = `function workerFunction() { ${source} }`;
+  wfURL = URL.createObjectURL(
+    new Blob(["(" + functionStr + ")()"], {
+      type: "text/javascript",
+    })
+  );
+  initPlugin();
+});
 
 (() => {
   const svgIcon = `<?xml version="1.0" encoding="utf-8"?>
@@ -118,6 +168,26 @@ Lampa.Utils.putScriptAsync(
     component: "ass",
     icon: svgIcon,
     name: "Субтитры ASS",
+  });
+  Lampa.SettingsApi.addParam({
+    component: "ass",
+    param: {
+      name: "ass_engine",
+      type: "select",
+      values: {
+        jassub: "JASSUB",
+        octopus: "Octopus",
+      },
+      default: isJassub ? "jassub" : "octopus",
+    },
+    onChange: () => {
+      Lampa.Noty.show("Требуется перезапуск для применения изменений");
+    },
+    field: {
+      name: "Движок рендера",
+      description:
+        "JASSUB - современный движок рендера субтитров, лучше всего использовать на современных телевизорах. Octopus - более старый движок рендера, можно использовать если по какой-то причине JASSUB не работает",
+    },
   });
   Lampa.SettingsApi.addParam({
     component: "ass",
@@ -187,32 +257,6 @@ Lampa.Utils.putScriptAsync(
   Lampa.SettingsApi.addParam({
     component: "ass",
     param: {
-      name: "ass_async_render",
-      type: "trigger",
-      default: true,
-    },
-    field: {
-      name: "Отложенный рендер",
-      description: "Разгружает CPU, создавая растровые изображения на GPU",
-    },
-  });
-  Lampa.SettingsApi.addParam({
-    component: "ass",
-    param: {
-      name: "ass_demand_render",
-      type: "trigger",
-      default: defaultSettingsValues.demandRender,
-    },
-    field: {
-      name: "Рендер по запросу (DEV)",
-      description:
-        "Нужно ли отображать субтитры по мере того, как видеоплеер отображает кадры, а не предсказывать, на каком кадре находится плеер, используя события (отключено на WebOS и Tizen из-за плохой реализации необходимых API в ОС)",
-    },
-  });
-  // добавить фпс
-  Lampa.SettingsApi.addParam({
-    component: "ass",
-    param: {
       name: "ass_drop_animation",
       type: "trigger",
       default: true,
@@ -223,16 +267,44 @@ Lampa.Utils.putScriptAsync(
         "Удаление анимированных тегов для увеличения производительности",
     },
   });
-  Lampa.SettingsApi.addParam({
-    component: "ass",
-    param: {
-      name: "ass_drop_blur",
-      type: "trigger",
-      default: true,
-    },
-    field: {
-      name: "Отключить теги размытия",
-      description: "Удаление тега размытия для увеличения производительности",
-    },
-  });
+  if (isJassub) {
+    Lampa.SettingsApi.addParam({
+      component: "ass",
+      param: {
+        name: "ass_async_render",
+        type: "trigger",
+        default: true,
+      },
+      field: {
+        name: "Отложенный рендер",
+        description: "Разгружает CPU, создавая растровые изображения на GPU",
+      },
+    });
+    Lampa.SettingsApi.addParam({
+      component: "ass",
+      param: {
+        name: "ass_demand_render",
+        type: "trigger",
+        default: defaultSettingsValues.demandRender,
+      },
+      field: {
+        name: "Рендер по запросу (DEV)",
+        description:
+          "Нужно ли отображать субтитры по мере того, как видеоплеер отображает кадры, а не предсказывать, на каком кадре находится плеер, используя события (отключено на WebOS и Tizen из-за плохой реализации необходимых API в ОС)",
+      },
+    });
+    // добавить фпс
+    Lampa.SettingsApi.addParam({
+      component: "ass",
+      param: {
+        name: "ass_drop_blur",
+        type: "trigger",
+        default: true,
+      },
+      field: {
+        name: "Отключить теги размытия",
+        description: "Удаление тега размытия для увеличения производительности",
+      },
+    });
+  }
 })();
